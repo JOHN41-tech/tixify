@@ -9,6 +9,7 @@ Tixify currently exposes typed tRPC procedures under `/api/trpc`. The procedure 
 | `events.list` | none | Published events |
 | `events.get` | `{ eventId }` | Event details and ticket types |
 | `events.seats` | `{ eventId }` | Authoritative seat state |
+| `publicTickets.get` | `{ publicCode }` | Resolve a scanned QR ticket code into a public verification view |
 | `reservations.expire` | none | Scheduled cleanup callback |
 | `payments.webhook` | `{ providerPaymentId, status, signature? }` | Idempotent provider callback |
 

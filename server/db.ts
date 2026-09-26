@@ -277,6 +277,38 @@ export async function listUserTickets(userId: number) {
     .orderBy(desc(tickets.createdAt));
 }
 
+export async function getPublicTicket(publicCode: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select({
+      id: tickets.id,
+      publicCode: tickets.publicCode,
+      status: tickets.status,
+      bookingId: bookings.id,
+      eventId: events.id,
+      eventName: events.name,
+      description: events.description,
+      startTime: events.startTime,
+      endTime: events.endTime,
+      venueName: venues.name,
+      venueAddress: venues.address,
+      section: seats.section,
+      row: seats.row,
+      number: seats.number,
+      seatType: seats.seatType,
+    })
+    .from(tickets)
+    .innerJoin(bookings, eq(tickets.bookingId, bookings.id))
+    .innerJoin(events, eq(tickets.eventId, events.id))
+    .innerJoin(venues, eq(events.venueId, venues.id))
+    .innerJoin(inventory, eq(tickets.inventoryId, inventory.id))
+    .innerJoin(seats, eq(inventory.seatId, seats.id))
+    .where(eq(tickets.publicCode, publicCode))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
 export async function listAdminReservations() {
   const db = await getDb();
   if (!db) return [];

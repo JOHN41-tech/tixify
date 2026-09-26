@@ -5,7 +5,7 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
-import { getDb, getBookingDetails, getEventDetails, getEventSeats, getReservationDetails, listAdminBookings, listAdminInventory, listAdminReservations, listPublishedEvents, listUserBookings, listUserTickets } from "./db";
+import { getDb, getBookingDetails, getEventDetails, getEventSeats, getPublicTicket, getReservationDetails, listAdminBookings, listAdminInventory, listAdminReservations, listPublishedEvents, listUserBookings, listUserTickets } from "./db";
 import { createBooking, createPayment, createReservation, cancelReservation, expireReservations, handlePaymentWebhook, verifyPayment, BookingError } from "./services/bookingService";
 import { events, inventory, seats, ticketTypes, tickets, venues } from "../drizzle/schema";
 
@@ -62,6 +62,13 @@ export const appRouter = router({
       return event;
     }),
     seats: publicProcedure.input(z.object({ eventId: idSchema })).query(({ input }) => getEventSeats(input.eventId)),
+  }),
+  publicTickets: router({
+    get: publicProcedure.input(z.object({ publicCode: z.string().min(4).max(64) })).query(async ({ input }) => {
+      const ticket = await getPublicTicket(input.publicCode.trim().toUpperCase());
+      if (!ticket) throw new TRPCError({ code: "NOT_FOUND", message: "Ticket not found." });
+      return ticket;
+    }),
   }),
   reservations: router({
     create: protectedProcedure.input(z.object({ eventId: idSchema, seatIds: seatListSchema, idempotencyKey: z.string().min(8).max(128).optional() })).mutation(async ({ ctx, input }) => {

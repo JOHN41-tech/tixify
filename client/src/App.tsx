@@ -9,6 +9,7 @@ import EventPage from "./pages/EventPage";
 import CheckoutPage from "./pages/CheckoutPage";
 import BookingPage from "./pages/BookingPage";
 import TicketsPage from "./pages/TicketsPage";
+import TicketVerificationPage from "./pages/TicketVerificationPage";
 import { AdminPage, LoginPage } from "./pages/UtilityPages";
 
 function Router() {
@@ -20,6 +21,7 @@ function Router() {
     <Route path="/checkout" component={CheckoutPage} />
     <Route path="/booking/:bookingId" component={BookingPage} />
     <Route path="/tickets" component={TicketsPage} />
+    <Route path="/ticket/:publicCode" component={TicketVerificationPage} />
     <Route path="/account/bookings" component={TicketsPage} />
     <Route path="/login" component={LoginPage} />
     <Route path="/register" component={LoginPage} />
