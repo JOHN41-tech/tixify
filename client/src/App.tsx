@@ -10,6 +10,7 @@ import CheckoutPage from "./pages/CheckoutPage";
 import BookingPage from "./pages/BookingPage";
 import TicketsPage from "./pages/TicketsPage";
 import TicketVerificationPage from "./pages/TicketVerificationPage";
+import OrganizerPage from "./pages/OrganizerPage";
 import { AdminPage, LoginPage } from "./pages/UtilityPages";
 
 function Router() {
@@ -22,6 +23,7 @@ function Router() {
     <Route path="/booking/:bookingId" component={BookingPage} />
     <Route path="/tickets" component={TicketsPage} />
     <Route path="/ticket/:publicCode" component={TicketVerificationPage} />
+    <Route path="/organizer" component={OrganizerPage} />
     <Route path="/account/bookings" component={TicketsPage} />
     <Route path="/login" component={LoginPage} />
     <Route path="/register" component={LoginPage} />

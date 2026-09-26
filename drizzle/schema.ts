@@ -36,6 +36,7 @@ export const venues = mysqlTable("venues", {
 export const events = mysqlTable("events", {
   id: int("id").autoincrement().primaryKey(),
   venueId: int("venueId").notNull().references(() => venues.id),
+  organizerId: int("organizerId").references(() => users.id, { onDelete: "set null" }),
   name: varchar("name", { length: 180 }).notNull(),
   slug: varchar("slug", { length: 180 }).notNull().unique(),
   category: varchar("category", { length: 64 }).default("Technology").notNull(),

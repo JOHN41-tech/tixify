@@ -4,10 +4,11 @@ import { and, eq, inArray } from "drizzle-orm";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
-import { getDb, getBookingDetails, getEventDetails, getEventSeats, getPublicTicket, getReservationDetails, listAdminBookings, listAdminInventory, listAdminReservations, listPublishedEvents, listUserBookings, listUserTickets } from "./db";
+import { adminProcedure, organizerProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { getDb, getBookingDetails, getEventDetails, getEventSeats, getPublicTicket, getReservationDetails, listAdminBookings, listAdminInventory, listAdminReservations, listOrganizerEvents, listPublishedEvents, listUserBookings, listUserTickets } from "./db";
 import { createBooking, createPayment, createReservation, cancelReservation, expireReservations, handlePaymentWebhook, verifyPayment, BookingError } from "./services/bookingService";
 import { events, inventory, seats, ticketTypes, tickets, venues } from "../drizzle/schema";
+import { nanoid } from "nanoid";
 
 const idSchema = z.number().int().positive();
 const seatListSchema = z.array(idSchema).min(1).max(10);
@@ -68,6 +69,53 @@ export const appRouter = router({
       const ticket = await getPublicTicket(input.publicCode.trim().toUpperCase());
       if (!ticket) throw new TRPCError({ code: "NOT_FOUND", message: "Ticket not found." });
       return ticket;
+    }),
+  }),
+  organizer: router({
+    events: organizerProcedure.query(({ ctx }) => listOrganizerEvents(ctx.user.id)),
+    createEvent: organizerProcedure.input(z.object({
+      name: z.string().trim().min(2).max(180),
+      category: z.string().trim().min(2).max(64),
+      description: z.string().trim().min(10).max(5000),
+      venueName: z.string().trim().min(2).max(160),
+      venueAddress: z.string().trim().min(5).max(255),
+      startTime: z.coerce.date(),
+      endTime: z.coerce.date(),
+      ticketPrice: z.number().finite().nonnegative(),
+      ticketSlots: z.number().int().min(1).max(2000),
+      maxTicketsPerUser: z.number().int().min(1).max(20),
+      publish: z.boolean().default(false),
+    }).refine((input) => input.endTime > input.startTime, { message: "End time must be after start time.", path: ["endTime"] })).mutation(async ({ ctx, input }) => {
+      const db = await dbOrThrow();
+      return db.transaction(async (tx) => {
+        const venueResult = await tx.insert(venues).values({ name: input.venueName, address: input.venueAddress, capacity: input.ticketSlots });
+        const venueId = Number(venueResult[0].insertId);
+        const eventResult = await tx.insert(events).values({
+          venueId,
+          organizerId: ctx.user.id,
+          name: input.name,
+          slug: `${input.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "event"}-${nanoid(6).toLowerCase()}`,
+          category: input.category,
+          description: input.description,
+          startTime: input.startTime,
+          endTime: input.endTime,
+          status: input.publish ? "PUBLISHED" : "DRAFT",
+          maxTicketsPerUser: input.maxTicketsPerUser,
+        });
+        const eventId = Number(eventResult[0].insertId);
+        await tx.insert(ticketTypes).values({ eventId, name: "STANDARD", price: input.ticketPrice.toFixed(2), quantity: input.ticketSlots, maxPerUser: input.maxTicketsPerUser });
+        const seatRows = Array.from({ length: input.ticketSlots }, (_, index) => ({ venueId, section: "MAIN", row: "A", number: index + 1, seatType: "STANDARD" as const }));
+        await tx.insert(seats).values(seatRows);
+        const createdSeats = await tx.select().from(seats).where(and(eq(seats.venueId, venueId), eq(seats.section, "MAIN"), eq(seats.row, "A"), inArray(seats.number, seatRows.map((seat) => seat.number))));
+        await tx.insert(inventory).values(createdSeats.map((seat) => ({ eventId, seatId: seat.id, status: "AVAILABLE" as const })));
+        return { eventId, venueId, status: input.publish ? "PUBLISHED" as const : "DRAFT" as const };
+      });
+    }),
+    publishEvent: organizerProcedure.input(z.object({ eventId: idSchema })).mutation(async ({ ctx, input }) => {
+      const db = await dbOrThrow();
+      const result = await db.update(events).set({ status: "PUBLISHED", updatedAt: new Date() }).where(and(eq(events.id, input.eventId), eq(events.organizerId, ctx.user.id)));
+      if (!result[0].affectedRows) throw new TRPCError({ code: "NOT_FOUND", message: "Organizer event not found." });
+      return { success: true as const };
     }),
   }),
   reservations: router({

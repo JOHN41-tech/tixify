@@ -327,4 +327,20 @@ export async function listAdminInventory(eventId: number) {
   return getEventSeats(eventId);
 }
 
+export async function listOrganizerEvents(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({
+    id: events.id,
+    name: events.name,
+    category: events.category,
+    status: events.status,
+    startTime: events.startTime,
+    endTime: events.endTime,
+    venueName: venues.name,
+    venueAddress: venues.address,
+    capacity: venues.capacity,
+  }).from(events).innerJoin(venues, eq(events.venueId, venues.id)).where(eq(events.organizerId, userId)).orderBy(desc(events.createdAt));
+}
+
 export const dbUtils = { and, asc, desc, eq, inArray, lt, sql };

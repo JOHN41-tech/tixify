@@ -26,6 +26,7 @@ const requireUser = t.middleware(async opts => {
 });
 
 export const protectedProcedure = t.procedure.use(requireUser);
+export const organizerProcedure = protectedProcedure;
 
 export const adminProcedure = t.procedure.use(
   t.middleware(async opts => {
