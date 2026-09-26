@@ -8,6 +8,9 @@ import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+import { subscribeInventory } from "../events";
+import { expireReservations } from "../services/bookingService";
+import { getDb } from "../db";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -36,6 +39,39 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   registerStorageProxy(app);
   registerOAuthRoutes(app);
+  app.get("/api/health", (_req, res) => res.json({ ok: true, service: "tixify" }));
+  app.get("/api/events/:eventId/stream", (req, res) => {
+    const eventId = Number(req.params.eventId);
+    if (!Number.isInteger(eventId) || eventId <= 0) {
+      res.status(400).end();
+      return;
+    }
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+    });
+    res.write(`event: connected\ndata: ${JSON.stringify({ eventId })}\n\n`);
+    const unsubscribe = subscribeInventory(eventId, (payload) => {
+      res.write(`event: inventory\ndata: ${JSON.stringify(payload)}\n\n`);
+    });
+    const heartbeat = setInterval(() => res.write(`: heartbeat\n\n`), 25000);
+    req.on("close", () => {
+      clearInterval(heartbeat);
+      unsubscribe();
+      res.end();
+    });
+  });
+  app.post("/api/scheduled/expire-reservations", async (_req, res) => {
+    try {
+      const db = await getDb();
+      if (!db) return res.status(503).json({ success: false, error: { code: "DATABASE_UNAVAILABLE" } });
+      return res.json({ success: true, expired: await expireReservations(db) });
+    } catch {
+      return res.status(500).json({ success: false, error: { code: "EXPIRATION_FAILED" } });
+    }
+  });
   // tRPC API
   app.use(
     "/api/trpc",

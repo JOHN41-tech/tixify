@@ -5,38 +5,33 @@ import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
+import EventPage from "./pages/EventPage";
+import CheckoutPage from "./pages/CheckoutPage";
+import BookingPage from "./pages/BookingPage";
+import TicketsPage from "./pages/TicketsPage";
+import { AdminPage, LoginPage } from "./pages/UtilityPages";
 
 function Router() {
-  // make sure to consider if you need authentication for certain routes
-  return (
-    <Switch>
-      <Route path={"/"} component={Home} />
-      <Route path={"/404"} component={NotFound} />
-      {/* Final fallback route */}
-      <Route component={NotFound} />
-    </Switch>
-  );
+  return <Switch>
+    <Route path="/" component={Home} />
+    <Route path="/events" component={Home} />
+    <Route path="/events/:eventId" component={EventPage} />
+    <Route path="/events/:eventId/seats" component={EventPage} />
+    <Route path="/checkout" component={CheckoutPage} />
+    <Route path="/booking/:bookingId" component={BookingPage} />
+    <Route path="/tickets" component={TicketsPage} />
+    <Route path="/account/bookings" component={TicketsPage} />
+    <Route path="/login" component={LoginPage} />
+    <Route path="/register" component={LoginPage} />
+    <Route path="/admin" component={AdminPage} />
+    <Route path="/admin/events" component={AdminPage} />
+    <Route path="/admin/bookings" component={AdminPage} />
+    <Route path="/admin/inventory" component={AdminPage} />
+    <Route path="/404" component={NotFound} />
+    <Route component={NotFound} />
+  </Switch>;
 }
 
-// NOTE: About Theme
-// - First choose a default theme according to your design style (dark or light bg), than change color palette in index.css
-//   to keep consistent foreground/background color across components
-// - If you want to make theme switchable, pass `switchable` ThemeProvider and use `useTheme` hook
-
-function App() {
-  return (
-    <ErrorBoundary>
-      <ThemeProvider
-        defaultTheme="light"
-        // switchable
-      >
-        <TooltipProvider>
-          <Toaster />
-          <Router />
-        </TooltipProvider>
-      </ThemeProvider>
-    </ErrorBoundary>
-  );
+export default function App() {
+  return <ErrorBoundary><ThemeProvider defaultTheme="light"><TooltipProvider><Toaster /><Router /></TooltipProvider></ThemeProvider></ErrorBoundary>;
 }
-
-export default App;
