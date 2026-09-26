@@ -1,0 +1,1 @@
+ALTER TABLE `events` ADD `category` varchar(64) DEFAULT 'Technology' NOT NULL;
