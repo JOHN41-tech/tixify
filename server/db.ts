@@ -215,6 +215,8 @@ export async function getBookingDetails(bookingId: number, userId?: number) {
     .select({
       id: tickets.id,
       publicCode: tickets.publicCode,
+      signedPayload: tickets.signedPayload,
+      signature: tickets.signature,
       status: tickets.status,
       inventoryId: inventory.id,
       section: seats.section,
@@ -257,6 +259,8 @@ export async function listUserTickets(userId: number) {
     .select({
       id: tickets.id,
       publicCode: tickets.publicCode,
+      signedPayload: tickets.signedPayload,
+      signature: tickets.signature,
       status: tickets.status,
       bookingId: bookings.id,
       eventId: events.id,
@@ -284,6 +288,8 @@ export async function getPublicTicket(publicCode: string) {
     .select({
       id: tickets.id,
       publicCode: tickets.publicCode,
+      signedPayload: tickets.signedPayload,
+      signature: tickets.signature,
       status: tickets.status,
       bookingId: bookings.id,
       eventId: events.id,

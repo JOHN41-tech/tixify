@@ -11,6 +11,7 @@ import { serveStatic, setupVite } from "./vite";
 import { subscribeInventory } from "../events";
 import { expireReservations } from "../services/bookingService";
 import { getDb } from "../db";
+import { securityRateLimitMiddleware } from "../securityMiddleware";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -75,6 +76,7 @@ async function startServer() {
   // tRPC API
   app.use(
     "/api/trpc",
+    securityRateLimitMiddleware,
     createExpressMiddleware({
       router: appRouter,
       createContext,

@@ -2,7 +2,7 @@
 
 ## Scope
 
-Tixify is the **core booking platform**. It owns authoritative event, venue, seat, inventory, reservation, payment, booking, and ticket state. Bot protection, rate limiting, cryptographic ticket signing, QR verification, and fraud/queue intelligence are intentionally left behind clean integration points for Person 2.
+Tixify is the **core booking platform plus a modular security engine**. It owns authoritative event, venue, seat, inventory, reservation, payment, booking, and ticket state. The security engine adds signed tickets, atomic scan replay protection, database-backed rate limiting, audit/security events, and a virtual queue contract without mutating inventory outside booking transactions.
 
 ## Runtime
 
@@ -18,14 +18,15 @@ The current hosted runtime is a single web server process. The database remains 
 
 ```text
 Browser UI
-  -> typed tRPC procedures / SSE inventory stream
-    -> router validation + auth / admin middleware
-      -> booking services (transactions, state transitions, payment abstraction)
-        -> Drizzle/MySQL source of truth
-          -> domain event bus -> connected SSE clients
+  -> signed QR / typed tRPC procedures / SSE inventory stream
+    -> rate-limit middleware + router validation + auth / admin middleware
+      -> security services (signature, scan, audit, queue)
+        -> booking services (transactions, state transitions, payment abstraction)
+          -> Drizzle/MySQL source of truth
+            -> domain event bus -> connected SSE clients
 ```
 
-Business logic is in `server/services`, not UI components. The `PaymentProvider` interface is replaceable. `server/events.ts` is the internal domain event seam for Person 2.
+Business logic is in `server/services`, not UI components. The `PaymentProvider` interface is replaceable. `server/services/securityService.ts` owns cryptographic ticket identity, scan replay protection, audit/security persistence, rate-limit counters, and queue state. `server/events.ts` remains the internal domain event seam for future Redis/bot/fraud consumers.
 
 ## Frontend architecture
 
@@ -47,9 +48,9 @@ Business logic is in `server/services`, not UI components. The `PaymentProvider`
 7. Only successful settlement changes inventory to `SOLD`, marks the booking/reservation confirmed, and creates tickets.
 8. Failed, cancelled, or expired reservations release inventory.
 
-## Person 2 integration
+## Security integration
 
-Security middleware can run before the tRPC procedures or at the Express boundary. Every write accepts an `Idempotency-Key` header. Core emits domain events (`ReservationCreated`, `SeatReserved`, `PaymentSucceeded`, `BookingConfirmed`, etc.) and exposes the ticket creation location in `settlePayment` for a future signed-ticket provider.
+The Express boundary applies database-backed rate limits to tRPC writes. `publicTickets.verify` is non-consuming; `publicTickets.scan` atomically transitions a valid ticket from `VALID` to `USED`. Every write accepts an `Idempotency-Key` header. Core emits domain events (`ReservationCreated`, `SeatReserved`, `PaymentSucceeded`, `BookingConfirmed`, etc.) for future distributed consumers.
 
 ## Directory structure
 

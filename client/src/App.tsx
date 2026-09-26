@@ -12,6 +12,7 @@ import TicketsPage from "./pages/TicketsPage";
 import TicketVerificationPage from "./pages/TicketVerificationPage";
 import OrganizerPage from "./pages/OrganizerPage";
 import { AdminPage, LoginPage } from "./pages/UtilityPages";
+import SecurityPage from "./pages/SecurityPage";
 
 function Router() {
   return <Switch>
@@ -31,6 +32,7 @@ function Router() {
     <Route path="/admin/events" component={AdminPage} />
     <Route path="/admin/bookings" component={AdminPage} />
     <Route path="/admin/inventory" component={AdminPage} />
+    <Route path="/admin/security" component={SecurityPage} />
     <Route path="/404" component={NotFound} />
     <Route component={NotFound} />
   </Switch>;

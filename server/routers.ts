@@ -9,6 +9,7 @@ import { getDb, getBookingDetails, getEventDetails, getEventSeats, getPublicTick
 import { createBooking, createPayment, createReservation, cancelReservation, expireReservations, handlePaymentWebhook, verifyPayment, BookingError } from "./services/bookingService";
 import { events, inventory, seats, ticketTypes, tickets, venues } from "../drizzle/schema";
 import { nanoid } from "nanoid";
+import { admitQueue, enforceRateLimit, joinQueue, leaveQueue, queueStatus, securityDashboard, validateAdmissionToken, verifyAndScanTicket, verifyTicket } from "./services/securityService";
 
 const idSchema = z.number().int().positive();
 const seatListSchema = z.array(idSchema).min(1).max(10);
@@ -70,6 +71,19 @@ export const appRouter = router({
       if (!ticket) throw new TRPCError({ code: "NOT_FOUND", message: "Ticket not found." });
       return ticket;
     }),
+    verify: publicProcedure.input(z.object({ qrValue: z.string().min(20).max(4096), eventId: idSchema.optional() })).query(async ({ ctx, input }) => verifyTicket(await dbOrThrow(), { qrValue: input.qrValue, expectedEventId: input.eventId, ip: ctx.req.ip })),
+    scan: publicProcedure.input(z.object({ qrValue: z.string().min(20).max(4096), eventId: idSchema.optional(), scannerId: z.string().max(128).optional() })).mutation(async ({ ctx, input }) => verifyAndScanTicket(await dbOrThrow(), { qrValue: input.qrValue, expectedEventId: input.eventId, scannerId: input.scannerId, ip: ctx.req.ip })),
+  }),
+  security: router({
+    checkRate: protectedProcedure.input(z.object({ policy: z.string().min(2).max(64), limit: z.number().int().positive(), windowSeconds: z.number().int().positive(), scope: z.string().min(1).max(160) })).mutation(async ({ ctx, input }) => enforceRateLimit(await dbOrThrow(), { key: `${ctx.user.id}:${input.scope}`, policy: input.policy, limit: input.limit, windowSeconds: input.windowSeconds, userId: ctx.user.id, ip: ctx.req.ip, endpoint: ctx.req.path })),
+    status: adminProcedure.query(async () => securityDashboard(await dbOrThrow())),
+  }),
+  queue: router({
+    join: publicProcedure.input(z.object({ eventId: idSchema, sessionId: z.string().max(128).optional() })).mutation(async ({ ctx, input }) => joinQueue(await dbOrThrow(), { eventId: input.eventId, userId: ctx.user?.id, sessionId: input.sessionId })),
+    status: publicProcedure.input(z.object({ queueId: z.string().min(4).max(64) })).query(async ({ input }) => queueStatus(await dbOrThrow(), input.queueId)),
+    leave: publicProcedure.input(z.object({ queueId: z.string().min(4).max(64) })).mutation(async ({ input }) => leaveQueue(await dbOrThrow(), input.queueId)),
+    admit: adminProcedure.input(z.object({ queueId: z.string().min(4).max(64) })).mutation(async ({ input }) => admitQueue(await dbOrThrow(), input.queueId)),
+    validate: protectedProcedure.input(z.object({ eventId: idSchema, accessToken: z.string().min(16).max(256), sessionId: z.string().max(128).optional() })).query(async ({ ctx, input }) => validateAdmissionToken(await dbOrThrow(), { eventId: input.eventId, token: input.accessToken, userId: ctx.user.id, sessionId: input.sessionId })),
   }),
   organizer: router({
     events: organizerProcedure.query(({ ctx }) => listOrganizerEvents(ctx.user.id)),

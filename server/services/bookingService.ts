@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { and, eq, inArray, lte, sql } from "drizzle-orm";
 import {
+  auditLogs,
   bookingItems,
   bookings,
   events,
@@ -18,6 +19,7 @@ import type { Database } from "../db";
 import { publishDomainEvent } from "../events";
 import { mockPaymentProvider } from "./paymentService";
 import { assertReservationTransition, money, reservationExpiry, sumMoney } from "./reservationService";
+import { createSignedTicket } from "./securityService";
 
 export class BookingError extends Error {
   constructor(public readonly code: string, message: string) {
@@ -54,9 +56,10 @@ export async function createReservation(
         .limit(1);
       if (existing[0]) {
         if (existing[0].requestHash !== hash) throw new BookingError("IDEMPOTENCY_CONFLICT", "This idempotency key was already used for a different request.");
+        if (existing[0].status === "PROCESSING") throw new BookingError("IDEMPOTENCY_CONFLICT", "This request is already being processed.");
         if (existing[0].responseJson) return JSON.parse(existing[0].responseJson);
       } else {
-        await tx.insert(idempotencyKeys).values({ key: input.idempotencyKey, userId: input.userId, operation: "reservation.create", requestHash: hash });
+        await tx.insert(idempotencyKeys).values({ key: input.idempotencyKey, userId: input.userId, operation: "reservation.create", requestHash: hash, status: "PROCESSING", expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) });
       }
     }
 
@@ -106,7 +109,7 @@ export async function createReservation(
 
     const response = { id: reservationId, eventId: input.eventId, status: "RESERVED" as const, expiresAt, totalAmount, seatIds: distinctSeatIds };
     if (input.idempotencyKey) {
-      await tx.update(idempotencyKeys).set({ responseJson: JSON.stringify(response) }).where(and(eq(idempotencyKeys.key, input.idempotencyKey), eq(idempotencyKeys.userId, input.userId), eq(idempotencyKeys.operation, "reservation.create")));
+      await tx.update(idempotencyKeys).set({ status: "SUCCESS", responseJson: JSON.stringify(response) }).where(and(eq(idempotencyKeys.key, input.idempotencyKey), eq(idempotencyKeys.userId, input.userId), eq(idempotencyKeys.operation, "reservation.create")));
     }
     publishDomainEvent({ type: "ReservationCreated", eventId: input.eventId, reservationId, seatIds: distinctSeatIds, at: new Date().toISOString() });
     publishDomainEvent({ type: "SeatReserved", eventId: input.eventId, reservationId, seatIds: distinctSeatIds, at: new Date().toISOString() });
@@ -238,10 +241,15 @@ async function settlePayment(db: Database, providerPaymentId: string, status: "S
     const bookingItemsRows = await tx.select().from(bookingItems).where(eq(bookingItems.bookingId, payment.bookingId));
     const soldSeatIds: number[] = [];
     for (const item of bookingItemsRows) {
-      await tx.update(inventory).set({ status: "SOLD", reservationId: null, updatedAt: new Date() }).where(eq(inventory.id, item.inventoryId));
-      await tx.insert(tickets).values({ bookingId: payment.bookingId, userId: reservation.userId, eventId: reservation.eventId, inventoryId: item.inventoryId, publicCode: `TIX-${randomUUID().slice(0, 8).toUpperCase()}` });
       const seatRow = await tx.select({ seatId: inventory.seatId }).from(inventory).where(eq(inventory.id, item.inventoryId)).limit(1);
-      if (seatRow[0]) soldSeatIds.push(seatRow[0].seatId);
+      const seatId = seatRow[0]?.seatId;
+      if (!seatId) throw new BookingError("SEAT_NOT_FOUND", "Ticket seat could not be resolved.");
+      await tx.update(inventory).set({ status: "SOLD", reservationId: null, updatedAt: new Date() }).where(eq(inventory.id, item.inventoryId));
+      const publicCode = `TIX-${randomUUID().slice(0, 8).toUpperCase()}`;
+      const signed = createSignedTicket({ ticketId: publicCode, eventId: String(reservation.eventId), seatId: String(seatId), userId: String(reservation.userId), issuedAt: new Date().toISOString(), expiresAt: null });
+      await tx.insert(tickets).values({ bookingId: payment.bookingId, userId: reservation.userId, eventId: reservation.eventId, inventoryId: item.inventoryId, publicCode, signedPayload: signed.payloadToken, signature: signed.signature, issuedAt: new Date() });
+      await tx.insert(auditLogs).values({ actorType: "SYSTEM", action: "TICKET_GENERATED", entityType: "TICKET", entityId: publicCode, metadataJson: JSON.stringify({ bookingId: payment.bookingId, eventId: reservation.eventId }) });
+      soldSeatIds.push(seatId);
     }
     await tx.update(bookings).set({ status: "CONFIRMED", confirmedAt: new Date(), updatedAt: new Date() }).where(eq(bookings.id, payment.bookingId));
     publishDomainEvent({ type: "BookingConfirmed", eventId: reservation.eventId, reservationId: reservation.id, bookingId: payment.bookingId, seatIds: soldSeatIds, at: new Date().toISOString() });
