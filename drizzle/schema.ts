@@ -38,6 +38,7 @@ export const events = mysqlTable("events", {
   venueId: int("venueId").notNull().references(() => venues.id),
   name: varchar("name", { length: 180 }).notNull(),
   slug: varchar("slug", { length: 180 }).notNull().unique(),
+  category: varchar("category", { length: 64 }).default("Technology").notNull(),
   description: text("description").notNull(),
   startTime: timestamp("startTime").notNull(),
   endTime: timestamp("endTime").notNull(),

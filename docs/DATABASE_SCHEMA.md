@@ -6,7 +6,7 @@ The database is the source of truth. All timestamps are stored as UTC database t
 
 - `users`: managed identity, email, and server-side `user`/`admin` role.
 - `venues`: named physical venue and capacity.
-- `events`: published schedule, lifecycle state, venue, and per-user ticket limit.
+- `events`: published schedule, category, lifecycle state, venue, and per-user ticket limit. Discovery derives live available-seat counts from `inventory` rather than storing a second counter.
 - `seats`: stable seat identity unique within a venue (`venueId`, `section`, `row`, `number`).
 - `ticketTypes`: authoritative event pricing and quantity categories.
 - `inventory`: one row per event-seat pair. Its state is `AVAILABLE`, `RESERVED`, `SOLD`, or `CANCELLED`.

@@ -14,6 +14,7 @@ async function main() {
     venueId,
     name: "TechFest 2026",
     slug: "techfest-2026",
+    category: "Technology",
     description: "A high-energy night of future-facing talks, live demos, and builder culture.",
     startTime: new Date(Date.now() + 21 * 24 * 60 * 60 * 1000),
     endTime: new Date(Date.now() + 21 * 24 * 60 * 60 * 1000 + 5 * 60 * 60 * 1000),

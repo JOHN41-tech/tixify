@@ -15,6 +15,13 @@
       "when": 1790396543484,
       "tag": "0001_broad_nebula",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1790397805123,
+      "tag": "0002_burly_ogun",
+      "breakpoints": true
     }
   ]
 }

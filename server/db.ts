@@ -76,6 +76,7 @@ export async function listPublishedEvents() {
       id: events.id,
       name: events.name,
       slug: events.slug,
+      category: events.category,
       description: events.description,
       startTime: events.startTime,
       endTime: events.endTime,
@@ -85,6 +86,7 @@ export async function listPublishedEvents() {
       venueName: venues.name,
       venueAddress: venues.address,
       capacity: venues.capacity,
+      availableSeats: sql<number>`(SELECT COUNT(*) FROM inventory AS availableInventory WHERE availableInventory.eventId = events.id AND availableInventory.status = 'AVAILABLE')`,
     })
     .from(events)
     .innerJoin(venues, eq(events.venueId, venues.id))
@@ -100,6 +102,7 @@ export async function getEventDetails(eventId: number) {
       id: events.id,
       name: events.name,
       slug: events.slug,
+      category: events.category,
       description: events.description,
       startTime: events.startTime,
       endTime: events.endTime,
